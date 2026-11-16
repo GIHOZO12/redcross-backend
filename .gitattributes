@@ -1,0 +1,23 @@
+# Normalise text files to LF inside the repository, whatever the OS.
+* text=auto
+
+# These run on Linux and MUST be LF. A shell script with CRLF endings fails
+# with a confusing "bad interpreter: /usr/bin/env bash^M" error on Render.
+*.sh text eol=lf
+build.sh text eol=lf
+
+# Read by Linux tooling; keep them LF too.
+requirements.txt text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+Dockerfile text eol=lf
+
+# Never touch binaries.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.mp4 binary
+*.sqlite3 binary
