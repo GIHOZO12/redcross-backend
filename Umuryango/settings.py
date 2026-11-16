@@ -249,18 +249,30 @@ SESSION_COOKIE_NAME = "sessionid"  # Default session cookie name
 SESSION_COOKIE_AGE = 86400   # 24 hours in seconds
 SESSION_SAVE_EVERY_REQUEST = True  # Save the session on every request
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to the cookie
-SESSION_COOKIE_SAMESITE = "Lax"  # Prevent cross-site request forgery
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep session even if browser is closed
 
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False  # Must stay False so the frontend can read the token
-CSRF_COOKIE_SAMESITE = 'Lax'   # Use 'None' if the frontend is on another domain
 
 # Cookies must carry the Secure flag once the site is served over HTTPS or
 # browsers refuse to store them. Tracks DEBUG by default; override if you are
 # running a production build over plain HTTP.
 SESSION_COOKIE_SECURE = env_bool('DJANGO_COOKIE_SECURE', default=not DEBUG)
 CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+
+# The frontend is on vercel.app and this API is on onrender.com, so every call
+# the browser makes is *cross-site*. A SameSite=Lax cookie is withheld on
+# cross-site requests, so the session and csrftoken cookies would simply never
+# arrive: the cookie-based login in crouirouge/views.py would appear to
+# succeed, then every following request would come back unauthenticated.
+#
+# SameSite=None is what lets the cookie travel, and browsers reject
+# SameSite=None unless Secure is set too - hence falling back to 'Lax' when
+# cookies are not Secure, which is the local-HTTP case.
+COOKIE_SAMESITE = env('DJANGO_COOKIE_SAMESITE') or (
+    'None' if SESSION_COOKIE_SECURE else 'Lax')
+SESSION_COOKIE_SAMESITE = COOKIE_SAMESITE
+CSRF_COOKIE_SAMESITE = COOKIE_SAMESITE
 
 AUTH_PASSWORD_VALIDATORS = [
     {

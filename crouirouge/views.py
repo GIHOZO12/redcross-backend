@@ -12,6 +12,7 @@ from django.views.decorators.csrf import csrf_exempt,csrf_protect
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import authenticate,login,logout
 from django.middleware.csrf import get_token
+from django.conf import settings
 from django.core.files.storage import default_storage
 from rest_framework_simplejwt.tokens import RefreshToken # type: ignore
 
@@ -481,9 +482,12 @@ def get_csrf_token(request):
     response.set_cookie(
         "csrftoken",
         token,
-        httponly=False,  # ✅ Must be False to allow frontend access
-        secure=False,  # Set to True if using HTTPS
-        samesite="Lax",
+        httponly=False,  # Must be False so the frontend can read the token
+        # Follow the project settings instead of hardcoding: over HTTPS with a
+        # frontend on another site these must be Secure + SameSite=None, or the
+        # browser keeps the cookie and every CSRF-protected POST fails with 403.
+        secure=settings.CSRF_COOKIE_SECURE,
+        samesite=settings.CSRF_COOKIE_SAMESITE,
     )
 
     return response
@@ -500,9 +504,9 @@ def get_csrf_token_activity(request):
     response.set_cookie(
         "csrftoken",
         token,
-        httponly=False,  # ✅ Must be False so frontend can access it
-        secure=False,  # ✅ Set to True only in production (HTTPS)
-        samesite="Lax",
+        httponly=False,  # Must be False so the frontend can read the token
+        secure=settings.CSRF_COOKIE_SECURE,
+        samesite=settings.CSRF_COOKIE_SAMESITE,
     )
 
     print("CSRF Token Sent:", token)  # ✅ Debugging
@@ -772,7 +776,9 @@ def Admin_announcement(request):
     response = JsonResponse({"announcements": announcements})
     
     # Set CSRF token as a cookie for frontend
-    response.set_cookie("csrftoken", csrf_token, httponly=False, samesite='Lax')
+    response.set_cookie("csrftoken", csrf_token, httponly=False,
+                        secure=settings.CSRF_COOKIE_SECURE,
+                        samesite=settings.CSRF_COOKIE_SAMESITE)
     
     return response
 
