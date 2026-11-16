@@ -1,0 +1,41 @@
+# Virtualenv
+/env
+
+# Secrets - never commit these
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Editor
+/.idea
+/.vscode
+
+# Django
+/staticfiles
+*.log
+
+# Local data. The live copies now live in Supabase (database) and Cloudflare
+# R2 (uploads), so these are local backups only and should not be in the repo:
+# db.sqlite3 holds real users and password hashes, and media/ holds 17MB of
+# members' photos.
+db.sqlite3
+db.sqlite3.bak
+/media
+
+# Legacy duplicates of the upload folders, left over from before MEDIA_ROOT
+# pointed at media/. Not referenced by the database.
+/activity_images
+/fellowership_images
+/firstaid_images
+/firstaid_videos
+/instructor_images
+/leaders_image
+/profile_images
+/redcross_activities_images
+
+/2015-16_R._Madrid_-_Bar_a.mp4
