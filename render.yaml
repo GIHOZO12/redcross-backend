@@ -17,10 +17,17 @@ services:
     plan: free
     branch: main
     buildCommand: "./build.sh"
-    startCommand: "gunicorn Umuryango.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120"
+    # 1 worker + threads, not 2 workers: the free instance has 512MB RAM
+    # and this app loads Django, boto3, pillow and reportlab into every
+    # worker. Threads suit the workload anyway - it is I/O bound waiting
+    # on Supabase and R2, not CPU bound.
+    startCommand: "gunicorn Umuryango.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120"
     healthCheckPath: /api/healthz/
     envVars:
-      # Match the local interpreter.
+      # Django 5.1 supports Python 3.10-3.13 only. Without this Render
+      # picks its latest default (3.14), which Django 5.1 was never
+      # tested against. Also pinned in .python-version, which applies
+      # even when the service is not created from this Blueprint.
       - key: PYTHON_VERSION
         value: "3.12.7"
 
