@@ -8,12 +8,14 @@ Unlike the other admin endpoints in this project, every view here checks who is
 calling. They change membership, so leaving them open would let anyone on the
 internet reassign a family's parents.
 
-Role is set on assignment. `Family.father`/`mother` carry
-`limit_choices_to={'role': 'Father'}`, which only filters Django admin's own
-form widget and enforces nothing at the database level, and there is no screen
-for editing a user's role. So assigning a user as father sets their role to
-Father; otherwise an officer could only ever pick users who happened to already
-hold the right role.
+Roles are left alone. A person's `role` is their committee office - President,
+Vice President, Secretary, Member - and where they sit in a family is a
+separate thing, held by `Family.father`/`mother` and by `Members` rows. One
+person can be a child in one family, a father in another, and President of the
+unit, and overwriting `role` on assignment would destroy two of those three.
+
+The one structural rule is that `father` and `mother` are OneToOne, so nobody
+parents more than one family; everything else may overlap.
 """
 
 import json
@@ -35,15 +37,16 @@ NOT_AN_OFFICER = {
 
 
 def _is_family_officer(user):
-    """True when this user may manage family structure.
+    """True when this user holds one of the committee offices.
 
-    Staff and superusers are included because they already administer every
-    family from the same screens.
+    Deliberately role-only: `is_staff` is a Django permission flag that gets
+    ticked for all sorts of reasons, and someone who can reach the admin
+    dashboard is not thereby entitled to restructure families. A superuser who
+    needs to do this either takes an office or uses Django admin, where they
+    can already edit Family and Members directly.
     """
     if user is None or not user.is_authenticated:
         return False
-    if user.is_staff or user.is_superuser:
-        return True
     return user.role in OFFICER_ROLES
 
 
@@ -156,32 +159,41 @@ def family_detail(request, id):
 
 @officer_required
 def assignable_users(request):
-    """Accounts an officer can pick from, with their current placement.
+    """Accounts an officer can pick from, with every placement each one holds.
 
-    Everyone is listed rather than pre-filtered by role, because assigning is
-    what sets the role. `family` says where a person already sits so the
-    officer can see at a glance that someone is taken.
+    Everyone is listed rather than filtered by role, because a person's role is
+    their committee office and says nothing about where they sit in a family.
+
+    `placements` is a list, not one value: the same person can be a child in
+    one family and a father in another, and the officer needs to see both
+    before deciding. `is_parent_elsewhere` is the only hard blocker - father
+    and mother are OneToOne, so nobody can parent two families.
     """
     users = User.objects.all().order_by("username")
+
     placements = {}
+
+    def add(user_id, family_name, kind):
+        if user_id:
+            placements.setdefault(user_id, []).append(
+                {"family": family_name, "as": kind}
+            )
+
     for fam in Family.objects.all().select_related("father", "mother"):
-        if fam.father_id:
-            placements[fam.father_id] = {"family": fam.name, "as": "father"}
-        if fam.mother_id:
-            placements[fam.mother_id] = {"family": fam.name, "as": "mother"}
+        add(fam.father_id, fam.name, "father")
+        add(fam.mother_id, fam.name, "mother")
     for member in Members.objects.exclude(user=None).select_related("family"):
-        placements.setdefault(
-            member.user_id, {"family": member.family.name, "as": "child"}
+        add(member.user_id, member.family.name, "child")
+
+    def brief(u):
+        held = placements.get(u.id, [])
+        return dict(
+            _user_brief(u),
+            placements=held,
+            is_parent_elsewhere=any(p["as"] in ("father", "mother") for p in held),
         )
 
-    return JsonResponse(
-        {
-            "status": True,
-            "users": [
-                dict(_user_brief(u), placement=placements.get(u.id)) for u in users
-            ],
-        }
-    )
+    return JsonResponse({"status": True, "users": [brief(u) for u in users]})
 
 
 # --------------------------------------------------------------------------- #
@@ -249,10 +261,9 @@ def assign_parent(request, id):
     setattr(family, slot, user)
     family.save()
 
-    new_role = "Father" if slot == "father" else "Mother"
-    if user.role != new_role:
-        user.role = new_role
-        user.save(update_fields=["role"])
+    # `user.role` is left untouched on purpose - it records their committee
+    # office, not their place in a family. Overwriting it here would strip a
+    # President of that office just because they took over a family.
 
     return JsonResponse(
         {
@@ -308,9 +319,8 @@ def add_child(request, id):
             last_name=user.last_name or "",
             email=user.email,
         )
-        if user.role != "child":
-            user.role = "child"
-            user.save(update_fields=["role"])
+        # Role untouched: being a child of a family says nothing about the
+        # office they hold, and they may well parent a different family.
     else:
         first_name = (data.get("first_name") or "").strip()
         last_name = (data.get("last_name") or "").strip()

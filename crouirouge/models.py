@@ -97,8 +97,11 @@ class Generalinformation(models.Model):
 
 class Family(models.Model):
     name = models.CharField(max_length=120)
-    father=models.OneToOneField(User,on_delete=models.CASCADE,related_name="father",null=True,blank=True,limit_choices_to={'role': 'Father'})
-    mother=models.OneToOneField(User,on_delete=models.CASCADE,related_name="mother",null=True,blank=True,limit_choices_to={'role': 'Mother'})
+    # No limit_choices_to: a person's role is their committee office, not
+    # their place in a family, so filtering candidates by role would hide
+    # every valid one. OneToOne still means nobody parents two families.
+    father=models.OneToOneField(User,on_delete=models.CASCADE,related_name="father",null=True,blank=True)
+    mother=models.OneToOneField(User,on_delete=models.CASCADE,related_name="mother",null=True,blank=True)
     class Meta:
          verbose_name="Family"
          verbose_name_plural = "Families"
@@ -117,7 +120,9 @@ class FamilyActivities(models.Model):
         return self.title    
 class Members(models.Model):
     family=models.ForeignKey(Family,on_delete=models.CASCADE,related_name="family")
-    user=models.ForeignKey(User,on_delete=models.CASCADE,related_name="user",null=True,blank=True,limit_choices_to={'role': 'child'})
+    # Same reasoning as Family.father: a child of this family may hold any
+    # office, and may be a parent of a different family.
+    user=models.ForeignKey(User,on_delete=models.CASCADE,related_name="user",null=True,blank=True)
     first_name = models.CharField(max_length=120)
     last_name = models.CharField(max_length=120)
     email = models.EmailField(max_length=120) 
