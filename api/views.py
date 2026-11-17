@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from api.uploads import DrainsUploadBeforeAuthMixin, drains_upload_before_auth
 from reportlab.lib.pagesizes import letter
 from rest_framework.permissions import IsAdminUser
 from rest_framework.views import APIView
@@ -643,6 +644,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
         404: OpenApiResponse(description='User not found.'),
     },
 )
+@drains_upload_before_auth
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])  # Use JWT authentication
 @permission_classes([IsAuthenticated])  # Require authenticated users
@@ -845,7 +847,7 @@ class LogoutView(APIView):
         ),
     },
 )
-class ChangeProfilePictureView(APIView):
+class ChangeProfilePictureView(DrainsUploadBeforeAuthMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
