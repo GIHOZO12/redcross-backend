@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import family_admin
 
 
 urlpatterns = [
@@ -31,6 +32,15 @@ urlpatterns = [
      path("admin_deleter_fellowship/<int:id>/", views.admin_deleter_fellowship, name="admin_deleter_fellowship"),
      path("admin_edit_fellowship/<int:id>/", views.admin_edit_fellowship, name="admin_edit_fellowship"),
      path('admin_family/', views.admin_family, name='admin_family'),
+
+     # Family administration for the committee (President / Vice President /
+     # Secretary). These change membership, so unlike the other admin routes
+     # every one of them checks the caller - see crouirouge/family_admin.py.
+     path('family_admin/families/', family_admin.family_overview, name='family_admin_overview'),
+     path('family_admin/families/<int:id>/', family_admin.family_detail, name='family_admin_detail'),
+     path('family_admin/families/<int:id>/assign_parent/', family_admin.assign_parent, name='family_admin_assign_parent'),
+     path('family_admin/families/<int:id>/children/', family_admin.add_child, name='family_admin_add_child'),
+     path('family_admin/assignable_users/', family_admin.assignable_users, name='family_admin_assignable_users'),
      path('add_fellowship/', views.add_fellowship, name='add_fellowship'),
     path('admin_add_activity/', views.admin_add_activity, name='admin_add_activity'),
      path("admin_info/", views.admin_info, name="admin_info"),

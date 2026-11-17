@@ -9,6 +9,7 @@ role=[
     ('Member','Member'),
     ('President','President'),
     ('Vice President','Vice President'),
+    ('Secretary','Secretary'),
     ('admin','admin'),
     ("child","child")
 ]
