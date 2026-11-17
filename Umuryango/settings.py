@@ -211,11 +211,29 @@ REST_FRAMEWORK = {
 }
 
 
+# How long a login lasts.
+#
+# These are two different clocks and only one of them is the "session":
+#   - the ACCESS token is the credential sent on every request, so it stays
+#     short. If it leaks, it expires on its own shortly after.
+#   - the REFRESH token is the real stay-logged-in window. It is exchanged for
+#     a new access token and is the value to measure in days.
+#
+# Raising the access token from 10 to 60 minutes also cuts the number of
+# refresh round-trips by six, which matters here because ROTATE_REFRESH_TOKENS
+# writes a blacklist row on every single refresh.
+ACCESS_TOKEN_MINUTES = int(env('DJANGO_ACCESS_TOKEN_MINUTES', default='60'))
+REFRESH_TOKEN_DAYS = int(env('DJANGO_REFRESH_TOKEN_DAYS', default='10'))
+
 SIMPLE_JWT = {
-     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),
-     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-     'ROTATE_REFRESH_TOKENS': True,
-     'BLACKLIST_AFTER_ROTATION': True
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=ACCESS_TOKEN_MINUTES),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=REFRESH_TOKEN_DAYS),
+    # Each refresh issues a brand new refresh token and blacklists the one just
+    # used, so a stolen refresh token is good for one use at most. The cost is
+    # that the client MUST store the new refresh token from every refresh
+    # response - keeping the old one logs the user straight out.
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 
@@ -246,7 +264,12 @@ CORS_ALLOW_ALL_ORIGINS = env_bool('DJANGO_CORS_ALLOW_ALL_ORIGINS', default=DEBUG
 # Session settings
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Use database-backed sessions
 SESSION_COOKIE_NAME = "sessionid"  # Default session cookie name
-SESSION_COOKIE_AGE = 86400   # 24 hours in seconds
+# Matches the refresh-token window so the session-cookie half of the API and
+# the JWT half expire together instead of one logging the user out early.
+# SESSION_SAVE_EVERY_REQUEST below makes this a rolling window: it counts from
+# the last request, not from login, so an active user is never kicked out.
+SESSION_COOKIE_AGE = int(
+    env('DJANGO_SESSION_DAYS', default=str(REFRESH_TOKEN_DAYS))) * 24 * 60 * 60
 SESSION_SAVE_EVERY_REQUEST = True  # Save the session on every request
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to the cookie
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep session even if browser is closed

@@ -494,6 +494,30 @@ def first_id_course_list(request):
     
 
 
+def _token_cookie_seconds(key):
+    """Lifetime of a JWT cookie, in seconds, from SIMPLE_JWT.
+
+    Without an explicit max_age, set_cookie writes a *session cookie*, which
+    the browser deletes when it closes - so the user would be logged out on
+    browser restart no matter how long the token itself is valid for.
+    """
+    return int(settings.SIMPLE_JWT[key].total_seconds())
+
+
+def _set_access_cookie(response, access_token):
+    response.set_cookie(
+        key='access_token', value=access_token, httponly=True, secure=True,
+        samesite='None', path='/',
+        max_age=_token_cookie_seconds('ACCESS_TOKEN_LIFETIME'))
+
+
+def _set_refresh_cookie(response, refresh_token):
+    response.set_cookie(
+        key='refresh_token', value=refresh_token, httponly=True, secure=True,
+        samesite='None', path='/',
+        max_age=_token_cookie_seconds('REFRESH_TOKEN_LIFETIME'))
+
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         res = Response()
@@ -504,8 +528,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             refresh_token = token["refresh"]
 
             res.data = {"success": True}
-            res.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="None", path="/")
-            res.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=True, samesite="None", path="/")
+            _set_access_cookie(res, access_token)
+            _set_refresh_cookie(res, refresh_token)
             return res
 
         except Exception as e:
@@ -526,11 +550,19 @@ class CustomRefreshToken(TokenRefreshView):
             request.data['refresh'] = refresh_token
             response = super().post(request, *args, **kwargs)
             token = response.data
-            access_token = token["access"]
 
             res = Response()
             res.data = {"refreshed": True}
-            res.set_cookie(key='access_token', value=access_token, httponly=True, secure=True, samesite="None", path="/")
+            _set_access_cookie(res, token["access"])
+
+            # ROTATE_REFRESH_TOKENS means this response carries a NEW refresh
+            # token and BLACKLIST_AFTER_ROTATION has just invalidated the one
+            # sent in. Dropping it left the browser holding a blacklisted
+            # token, so the next refresh failed and the user was logged out
+            # after two access-token lifetimes however long the refresh token
+            # was configured to live.
+            if "refresh" in token:
+                _set_refresh_cookie(res, token["refresh"])
             return res
 
         except Exception as e:
