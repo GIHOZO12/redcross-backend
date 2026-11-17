@@ -15,6 +15,7 @@ from django.middleware.csrf import get_token
 from django.conf import settings
 from django.core.files.storage import default_storage
 from rest_framework_simplejwt.tokens import RefreshToken # type: ignore
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from rest_framework.decorators import api_view, permission_classes
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -187,6 +188,58 @@ def logout_info(request):
     return JsonResponse({'status':True,'message':'Logout successful','redirect_url':'/'})
 
 
+def _request_user(request):
+    """Resolve who is calling one of these plain Django views.
+
+    These are not DRF views, so request.user only ever reflects the session
+    login at /login_info/. The JWT half of the API hands the token to the
+    frontend either in an Authorization header or in the access_token cookie,
+    and neither of those reaches AuthenticationMiddleware - a parent logged in
+    that way would look anonymous here and be refused on their own family.
+    So try all three, in order of cost.
+
+    Returns None when nobody is authenticated.
+    """
+    user = getattr(request, 'user', None)
+    if user is not None and user.is_authenticated:
+        return user
+
+    raw = None
+    header = request.META.get('HTTP_AUTHORIZATION', '')
+    if header.startswith('Bearer '):
+        raw = header.split(' ', 1)[1].strip()
+    if not raw:
+        raw = request.COOKIES.get('access_token')
+    if not raw:
+        return None
+
+    backend = JWTAuthentication()
+    try:
+        return backend.get_user(backend.get_validated_token(raw))
+    except Exception:
+        # Expired, tampered with, or the user has since been deleted. Treat it
+        # as not logged in rather than raising - the caller turns this into a
+        # clean 401 and the frontend can go refresh its token.
+        return None
+
+
+def _is_family_parent(user, family):
+    """True when this user may manage THIS family's activities.
+
+    Family.father and Family.mother are OneToOne fields, so a parent belongs
+    to exactly one family and comparing ids is the whole rule: it is true on
+    their own family page and false on every other one.
+
+    Staff keep access because they administer every family from the same
+    screens; everybody else, including a parent of a different family, is out.
+    """
+    if user is None or not user.is_authenticated:
+        return False
+    if user.is_staff or user.is_superuser:
+        return True
+    return user.id in (family.father_id, family.mother_id)
+
+
 def get_family_details(request, name):
     try:
         family = Family.objects.get(name=name)
@@ -202,6 +255,13 @@ def get_family_details(request, name):
                 "id": family.mother.id if family.mother else None,
                 "username": family.mother.username if family.mother else None,
             },
+            # The frontend renders the "add activity" button on this flag, so
+            # it appears on a parent's own family page and nowhere else. It is
+            # computed per request from who is calling, not from the family,
+            # and the same rule is enforced again in create_activity,
+            # update_activity and family_delete_activity - hiding a button
+            # stops nobody from calling the endpoint directly.
+            "can_add_activity": _is_family_parent(_request_user(request), family),
         }
         return JsonResponse({"family": family_data}, status=200)
     except Family.DoesNotExist:
@@ -239,7 +299,12 @@ def family_activities(request, name):
             }
             for activity in activities
         ]
-        return JsonResponse({"activities": activities_data}, status=200)
+        return JsonResponse({
+            "activities": activities_data,
+            # Lets the edit/delete controls on each row follow the same rule
+            # as the add button without a second round-trip.
+            "can_add_activity": _is_family_parent(_request_user(request), family),
+        }, status=200)
     except Family.DoesNotExist:
         return JsonResponse({"error": "Family not found."}, status=404)
 
@@ -249,24 +314,47 @@ def get_csrf_token(request):
     return JsonResponse({"csrfToken": get_token(request)})
 
 
+UNAUTHENTICATED = {'status': False,
+                   'message': 'You must be logged in to do this'}
+NOT_YOUR_FAMILY = {'status': False,
+                   'message': 'Only the father or mother of this family can '
+                              'manage its activities'}
+
+
 @csrf_exempt
 def create_activity(request):
+    # The family name arrives in the POST body, so without this check anyone
+    # who could guess a family name could post an activity to it. Order
+    # matters: authenticate, then authorise against the named family, and only
+    # then look at the fields - a stranger should not learn which fields the
+    # form wants.
+    user = _request_user(request)
+    if user is None:
+        return JsonResponse(UNAUTHENTICATED, status=401)
+
     family_name = request.POST.get("family_name")
+    if not family_name:
+        return JsonResponse({'status': False, 'message': 'family_name is required'}, status=400)
+
+    try:
+        family = Family.objects.get(name=family_name)
+    except Family.DoesNotExist:
+        return JsonResponse({'status': False, 'message': 'Family not found'}, status=404)
+
+    if not _is_family_parent(user, family):
+        return JsonResponse(NOT_YOUR_FAMILY, status=403)
+
     title = request.POST.get("title")  # Ensure key names match frontend
     text = request.POST.get("text")
     activityImage = request.FILES.get("activity_image")
 
-    if not family_name or not title or not text or not activityImage:
+    if not title or not text or not activityImage:
         return JsonResponse({'status': False, 'message': 'All fields are required'}, status=400)
 
     try:
-        family = Family.objects.get(name=family_name)
         activity = FamilyActivities(family=family, title=title, text=text, activityImage=activityImage)
         activity.save()
         return JsonResponse({'status': True, 'message': 'Activity created successfully',"redirect_url":"/families/"+family_name}, status=201)
-
-    except Family.DoesNotExist:
-        return JsonResponse({'status': False, 'message': 'Family not found'}, status=404)
 
     except Exception as e:
         return JsonResponse({'status': False, 'message': str(e)}, status=500)
@@ -277,6 +365,13 @@ def create_activity(request):
 def family_delete_activity(request,id):
     if request.method == "DELETE":
         activity = get_object_or_404(FamilyActivities, id=id)
+        # The family comes from the activity, so a parent cannot reach another
+        # family's activity by its id - ids are sequential and guessable.
+        user = _request_user(request)
+        if user is None:
+            return JsonResponse(UNAUTHENTICATED, status=401)
+        if not _is_family_parent(user, activity.family):
+            return JsonResponse(NOT_YOUR_FAMILY, status=403)
         activity.delete()
         return JsonResponse({"status": True, "message": "Activity deleted successfully"}, status=200)
     
@@ -297,6 +392,11 @@ def update_activity(request, id):
     
     if request.method =="POST":
         activity = get_object_or_404(FamilyActivities, id=id)
+        user = _request_user(request)
+        if user is None:
+            return JsonResponse(UNAUTHENTICATED, status=401)
+        if not _is_family_parent(user, activity.family):
+            return JsonResponse(NOT_YOUR_FAMILY, status=403)
         title = request.POST.get("title")
         text = request.POST.get("text")
         activityImage = request.FILES.get("activity_image")
