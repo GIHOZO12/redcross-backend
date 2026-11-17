@@ -553,7 +553,9 @@ def admin_add_activity(request):
             return JsonResponse({"status": False, "message": "All fields are required"}, status=400)
 
         try:
-            activity = RedcrossActivities(title=title, description=description, image=image)
+            activity = RedcrossActivities(
+                title=title, description=description, redcross_activities_image=image
+            )
             activity.save()
             return JsonResponse({"status": True, "message": "Activity added successfully"}, status=201)
         except Exception as e:
@@ -606,7 +608,9 @@ def admin_edit_activities(request, id):
 
         if image:
             if activity.redcross_activities_image:
-                default_storage.delete(activity.redcross_activities_image.path)
+                # .name, not .path: object storage has no absolute paths and
+                # .path raises NotImplementedError on the S3/R2 backend.
+                default_storage.delete(activity.redcross_activities_image.name)
             activity.redcross_activities_image = image
             updated = True
 
@@ -662,7 +666,9 @@ def admin_edit_fellowship(request, id):
             updated = True
         if image:
             if fellowship.fellowership_image:
-                default_storage.delete(fellowship.fellowership_image.path)  # Delete old image
+                # .name, not .path: object storage has no absolute paths and
+                # .path raises NotImplementedError on the S3/R2 backend.
+                default_storage.delete(fellowship.fellowership_image.name)  # Delete old image
             fellowship.fellowership_image = image
             updated = True
 
