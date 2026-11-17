@@ -689,6 +689,10 @@ class Createuserview(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
+    # Public endpoint: authenticate nobody. Without this, a browser that
+    # also holds a Django session is authenticated by SessionAuthentication,
+    # which then enforces CSRF and rejects the call with 403 CSRF Failed.
+    authentication_classes = []
 
 @method_decorator(csrf_exempt, name='dispatch')
 @extend_schema(
@@ -736,6 +740,10 @@ class Createuserview(generics.CreateAPIView):
 )
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    # Public endpoint: authenticate nobody. Without this, a browser that
+    # also holds a Django session is authenticated by SessionAuthentication,
+    # which then enforces CSRF and rejects the call with 403 CSRF Failed.
+    authentication_classes = []
 
     def post(self, request):
         email = request.data.get("email")
@@ -791,6 +799,10 @@ class LoginView(APIView):
 )
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
+    # Public endpoint: authenticate nobody. Without this, a browser that
+    # also holds a Django session is authenticated by SessionAuthentication,
+    # which then enforces CSRF and rejects the call with 403 CSRF Failed.
+    authentication_classes = []
     def post(self, request):
         email = request.data.get("email")
         new_password = request.data.get("new_password")
@@ -885,6 +897,10 @@ class ChangeProfilePictureView(DrainsUploadBeforeAuthMixin, APIView):
 )
 class GeneralInformation(APIView):
     permission_classes = [AllowAny]
+    # Public endpoint: authenticate nobody. Without this, a browser that
+    # also holds a Django session is authenticated by SessionAuthentication,
+    # which then enforces CSRF and rejects the call with 403 CSRF Failed.
+    authentication_classes = []
     def post(self,request,*args,**kwargs):
         serializer=GeneralinformationSerializer(data=request.data)
         if serializer.is_valid():

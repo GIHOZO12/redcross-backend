@@ -198,12 +198,19 @@ else:
 REST_FRAMEWORK = {
     # drf-spectacular generates the OpenAPI 3.0 schema that powers /api/docs/
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # JWT first, deliberately. DRF uses the first class that returns a user,
+    # and SessionAuthentication enforces CSRF whenever it succeeds. With it
+    # first, any browser that also held a Django admin session was
+    # authenticated by session instead of by its bearer token, and the request
+    # was then rejected with "CSRF Failed" - the SPA cannot supply that token,
+    # because the csrftoken cookie belongs to the API's domain and script on
+    # the frontend's domain cannot read it. Session auth stays last so DRF's
+    # browsable API keeps working.
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.BasicAuthentication',
-         'rest_framework.authentication.TokenAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication'
-
+        'rest_framework.authentication.SessionAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
