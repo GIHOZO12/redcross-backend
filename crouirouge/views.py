@@ -301,12 +301,20 @@ def update_activity(request, id):
         text = request.POST.get("text")
         activityImage = request.FILES.get("activity_image")
 
-        if not title or not text or not activityImage:
-            return JsonResponse({'status': False, 'message': 'All fields are required'}, status=400)
+        # The image is optional on an edit. The GET above returns the current
+        # image as a URL, so a client that is only changing the text has no
+        # file to resend; requiring one here made every such update fail with
+        # "All fields are required".
+        if not title or not text:
+            return JsonResponse({'status': False, 'message': 'Title and text are required'}, status=400)
 
         activity.title = title
         activity.text = text
-        activity.activityImage = activityImage
+        if activityImage:
+            if activity.activityImage:
+                # .name, not .path: object storage has no absolute paths.
+                default_storage.delete(activity.activityImage.name)
+            activity.activityImage = activityImage
         activity.save()
 
         return JsonResponse({'status': True, 'message': 'Activity updated successfully',"redirect_url":"/families/"+activity.family.name}, status=200)
