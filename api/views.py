@@ -54,6 +54,7 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
     OpenApiExample,
+    OpenApiParameter,
     OpenApiResponse,
 )
 
@@ -944,6 +945,63 @@ class GeneralInformation(APIView):
         },
     ),
 )
+@extend_schema(
+    tags=['General Information'],
+    summary='Check whether a national ID is already registered',
+    description=(
+        'Reports whether a national identification number already belongs to a '
+        'registration record, so the member form can say so before submitting '
+        'rather than failing on save. '
+        'Returns only a boolean: it never says whose record it is, so it '
+        'cannot be used to look someone up from an ID number.'
+    ),
+    parameters=[
+        OpenApiParameter(
+            name='nationalId',
+            type=str,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description='The national identification number to check.',
+        )
+    ],
+    responses={200: OpenApiResponse(description='{"exists": true|false}')},
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_national_id(request):
+    """Is this national ID already on a registration record?
+
+    The member form asks before submitting so it can show the problem next to
+    the field. The database has the final say either way - nationalId is
+    unique - so this is a convenience, not the enforcement.
+
+    Deliberately answers with nothing but a boolean: confirming an ID exists
+    is already more than an anonymous caller should learn, which is why it
+    needs a login, and naming the holder would be worse.
+    """
+    raw = (request.query_params.get('nationalId') or '').strip()
+    if not raw:
+        return Response(
+            {"exists": False, "message": "No nationalId given"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        value = int(raw)
+    except ValueError:
+        # Not a number, so no record can match it. Not an error worth
+        # breaking the form over.
+        return Response({"exists": False})
+
+    query = Generalinformation.objects.filter(nationalId=value)
+
+    # Editing your own record must not report your own ID as taken.
+    if request.user.is_authenticated:
+        query = query.exclude(user_id=request.user.id)
+
+    return Response({"exists": query.exists()})
+
+
 class EditGeneralInformation(APIView):
     permission_classes = [IsAuthenticated]
     def get_object(self, user_id):
