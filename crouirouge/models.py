@@ -153,6 +153,30 @@ class Fellowership(models.Model):
 
         def __str__(self):
             return self.title
+class FellowshipImage(models.Model):
+    """An extra photo from a fellowship, with a note on what was learned.
+
+    Fellowership.fellowership_image stays the single cover image shown in
+    listings. These are the additional pictures behind it, each captioned, so a
+    fellowship's detail page reads as a short illustrated record rather than a
+    bare photo grid.
+    """
+    fellowship = models.ForeignKey(
+        Fellowership, on_delete=models.CASCADE, related_name="gallery"
+    )
+    image = models.ImageField(upload_to='fellowership_images/')
+    caption = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Fellowship image"
+        verbose_name_plural = "Fellowship images"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return self.caption or "Image for %s" % self.fellowship.title
+
+
 class RedcrossActivities(models.Model):
         title=models.CharField(max_length=120)
         description=models.TextField()

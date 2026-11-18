@@ -469,6 +469,8 @@ def latest_redcross_activities(request):
         
         # ✅ Append data regardless of whether an image exists
         data.append({
+            # The card needs an id to link to /redcross_activity/<id>/.
+            "id": activity.id,
             "title": activity.title,
             "description": activity.description,
             "redcross_activities_image": image_url,
@@ -838,6 +840,8 @@ def All_fellowships(request):
             except Exception as e:
                 print("Error:", str(e))
         data.append({
+            # The card needs an id to link to /fellowship/<id>/.
+            "id": fellow.id,
             "title": fellow.title,
             "description": fellow.description,
             "fellowship_image": image_url,

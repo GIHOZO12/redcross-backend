@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import family_admin
+from . import detail_views
 
 
 urlpatterns = [
@@ -46,6 +47,14 @@ urlpatterns = [
      path("admin_info/", views.admin_info, name="admin_info"),
      path("all_fellowships/", views. All_fellowships, name="all_fellowships"),
      path("All_activities/", views.All_activities, name="All_activities"),
+
+     # Detail pages. Reads are public like the listings they come from;
+     # the gallery writes require a committee officer or staff.
+     path("fellowship/<int:id>/", detail_views.fellowship_detail, name="fellowship_detail"),
+     path("redcross_activity/<int:id>/", detail_views.redcross_activity_detail, name="redcross_activity_detail"),
+     path("family_activity/<int:id>/", detail_views.family_activity_detail, name="family_activity_detail"),
+     path("fellowship/<int:id>/images/", detail_views.add_fellowship_image, name="add_fellowship_image"),
+     path("fellowship_image/<int:id>/", detail_views.delete_fellowship_image, name="delete_fellowship_image"),
      path("announcement_list/", views.announcement_list, name="announcement_list"),
      path("admin_announcement/", views.Admin_announcement, name="admin_announcement"),
      path("admin_add_announcement/", views.admin_add_announcement, name="admin_add_announcement"),
