@@ -262,19 +262,12 @@ if RENDER_EXTERNAL_HOSTNAME:
         CSRF_TRUSTED_ORIGINS.append(_render_origin)
     if _render_origin not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(_render_origin)
-# This used to be unconditionally True, which let any site on the internet make
-# credentialed requests to the API. It now defaults to on only while DEBUG is
-# on; in production the explicit CORS_ALLOWED_ORIGINS list above applies, so add
-# the deployed frontend origin there.
+
 CORS_ALLOW_ALL_ORIGINS = env_bool('DJANGO_CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
 
-# Session settings
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Use database-backed sessions
 SESSION_COOKIE_NAME = "sessionid"  # Default session cookie name
-# Matches the refresh-token window so the session-cookie half of the API and
-# the JWT half expire together instead of one logging the user out early.
-# SESSION_SAVE_EVERY_REQUEST below makes this a rolling window: it counts from
-# the last request, not from login, so an active user is never kicked out.
+
 SESSION_COOKIE_AGE = int(
     env('DJANGO_SESSION_DAYS', default=str(REFRESH_TOKEN_DAYS))) * 24 * 60 * 60
 SESSION_SAVE_EVERY_REQUEST = True  # Save the session on every request
@@ -284,21 +277,11 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep session even if browser is close
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False  # Must stay False so the frontend can read the token
 
-# Cookies must carry the Secure flag once the site is served over HTTPS or
-# browsers refuse to store them. Tracks DEBUG by default; override if you are
-# running a production build over plain HTTP.
+
 SESSION_COOKIE_SECURE = env_bool('DJANGO_COOKIE_SECURE', default=not DEBUG)
 CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
 
-# The frontend is on vercel.app and this API is on onrender.com, so every call
-# the browser makes is *cross-site*. A SameSite=Lax cookie is withheld on
-# cross-site requests, so the session and csrftoken cookies would simply never
-# arrive: the cookie-based login in crouirouge/views.py would appear to
-# succeed, then every following request would come back unauthenticated.
-#
-# SameSite=None is what lets the cookie travel, and browsers reject
-# SameSite=None unless Secure is set too - hence falling back to 'Lax' when
-# cookies are not Secure, which is the local-HTTP case.
+
 COOKIE_SAMESITE = env('DJANGO_COOKIE_SAMESITE') or (
     'None' if SESSION_COOKIE_SECURE else 'Lax')
 SESSION_COOKIE_SAMESITE = COOKIE_SAMESITE
@@ -320,8 +303,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 
@@ -332,8 +313,7 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
+
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Collects all static files here
@@ -345,31 +325,14 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# WhiteNoise compresses collected static files and serves them with far-future
-# cache headers. In DEBUG, Django's own staticfiles handler runs instead, so
-# there is no need to run collectstatic while developing.
-#
-# Note: this is the *compressed* backend, not the *manifest* one. Manifest
-# storage renames files to logo.<hash>.png, and ProofOfRegistrationView /
-# download_single_user_info open STATIC_ROOT/logo.png by literal path to stamp
-# the logo onto their PDFs. Compressed-only keeps the original filenames, so
-# those two views keep working.
+
 STATICFILES_BACKEND = (
     'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
     else 'whitenoise.storage.CompressedStaticFilesStorage'
 )
 
 
-# ---------------------------------------------------------------------------
-# User uploads on Cloudflare R2 (S3-compatible object storage)
-# ---------------------------------------------------------------------------
-# Leave R2_BUCKET_NAME unset and uploads keep going to MEDIA_ROOT on local disk,
-# which is what local development wants.
-#
-# Only *media* moves to R2. Static files stay on the local filesystem on
-# purpose: ProofOfRegistrationView and download_single_user_info both read
-# STATIC_ROOT/logo.png off the disk with open(), so serving static from object
-# storage would break PDF generation.
+
 R2_BUCKET_NAME = env('R2_BUCKET_NAME')
 USE_R2 = bool(R2_BUCKET_NAME)
 
@@ -384,17 +347,10 @@ if USE_R2:
             'missing: %s' % ', '.join(_missing)
         )
 
-    # boto3 >= 1.36 attaches a CRC32 checksum to uploads by default, which R2
-    # rejects with "Header 'x-amz-checksum-crc32' not implemented". Asking
-    # botocore to checksum only when the operation requires it restores
-    # compatibility. This must run before the first boto3 client is built.
     os.environ.setdefault('AWS_REQUEST_CHECKSUM_CALCULATION', 'when_required')
     os.environ.setdefault('AWS_RESPONSE_CHECKSUM_VALIDATION', 'when_required')
 
-    # Public base host for object URLs: either an R2 custom domain
-    # (media.example.com) or the bucket's public r2.dev address, with no scheme
-    # and no trailing slash. Without one, objects are not publicly reachable, so
-    # fall back to time-limited signed URLs.
+
     R2_CUSTOM_DOMAIN = env('R2_CUSTOM_DOMAIN')
 
     STORAGES = {
@@ -433,8 +389,6 @@ else:
     }
 
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -442,30 +396,7 @@ AUTH_USER_MODEL = 'crouirouge.User'
 
 
 
-# import logging
-# import sys
 
-# logging.getLogger("django.server").addFilter(
-#     lambda record: "Broken pipe" not in record.getMessage()
-# )
-
-# JAZZMIN_UI_TWEAKS = {
-
-#     "theme": "darkly",
-# }
-
-
-
-# ---------------------------------------------------------------------------
-# Email
-# ---------------------------------------------------------------------------
-# The Gmail app password used to live in this file in plain text. It now comes
-# from EMAIL_HOST_PASSWORD in the environment - and because the old one was
-# committed, it should be revoked and regenerated at
-# https://myaccount.google.com/apppasswords
-#
-# With no EMAIL_HOST_USER set, mail falls back to the console backend so local
-# development does not need SMTP credentials at all.
 EMAIL_HOST_USER = env('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', '')
 
@@ -480,33 +411,19 @@ EMAIL_USE_TLS = env_bool('EMAIL_USE_TLS', default=True)
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'webmaster@localhost')
 
 
-# ---------------------------------------------------------------------------
-# Production hardening
-# ---------------------------------------------------------------------------
-# Only applied with DEBUG off, so local development is untouched.
 if not DEBUG:
-    # Most PaaS hosts terminate TLS at a proxy and forward this header; without
-    # it Django cannot tell that the original request was HTTPS.
+
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', default=True)
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
 
-    # HSTS is off by default because it is hard to undo: browsers remember the
-    # header for its full duration and will refuse plain HTTP to this host until
-    # it expires. Turn it on once HTTPS is known to be working, e.g.
-    # DJANGO_HSTS_SECONDS=31536000.
+
     SECURE_HSTS_SECONDS = int(env('DJANGO_HSTS_SECONDS', '0'))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_HSTS_INCLUDE_SUBDOMAINS')
     SECURE_HSTS_PRELOAD = env_bool('DJANGO_HSTS_PRELOAD')
 
-# ---------------------------------------------------------------------------
-# OpenAPI / Swagger documentation (drf-spectacular)
-# ---------------------------------------------------------------------------
-# Browsable docs live at:
-#   /api/docs/        Swagger UI
-#   /api/redoc/       ReDoc
-#   /api/schema/      raw OpenAPI 3.0 schema (YAML, or JSON with ?format=json)
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'RRC Nyarugenge Youth API',
     'DESCRIPTION': (
@@ -533,10 +450,7 @@ SPECTACULAR_SETTINGS = {
     'SCHEMA_PATH_PREFIX': '/api',           # strip the common prefix from operation ids
     'COMPONENT_SPLIT_REQUEST': True,        # separate read/write schemas (needed for write_only fields)
     'SORT_OPERATIONS': False,
-    # World readable while developing, staff-only once DEBUG is off, so
-    # deploying does not publish the whole API surface. Override with
-    # DJANGO_DOCS_PERMISSIONS (comma-separated permission class paths) if you
-    # want public docs in production.
+
     'SERVE_PERMISSIONS': env_list(
         'DJANGO_DOCS_PERMISSIONS',
         default=(
