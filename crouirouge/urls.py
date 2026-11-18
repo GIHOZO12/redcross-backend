@@ -41,6 +41,7 @@ urlpatterns = [
      path('family_admin/families/<int:id>/', family_admin.family_detail, name='family_admin_detail'),
      path('family_admin/families/<int:id>/assign_parent/', family_admin.assign_parent, name='family_admin_assign_parent'),
      path('family_admin/families/<int:id>/children/', family_admin.add_child, name='family_admin_add_child'),
+     path('family_admin/children/<int:id>/', family_admin.remove_child, name='family_admin_remove_child'),
      path('family_admin/assignable_users/', family_admin.assignable_users, name='family_admin_assignable_users'),
      path('add_fellowship/', views.add_fellowship, name='add_fellowship'),
     path('admin_add_activity/', views.admin_add_activity, name='admin_add_activity'),

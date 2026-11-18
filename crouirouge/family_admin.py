@@ -349,3 +349,34 @@ def add_child(request, id):
         },
         status=201,
     )
+
+
+@csrf_exempt
+@officer_required
+def remove_child(request, id):
+    """Take a child out of a family.
+
+    Deletes the Members row that places them, nothing else. The person's
+    account is untouched: they keep their login, their committee office and
+    any other placement they hold, and can be added to a family again. A
+    child recorded without an account simply disappears, since the row was
+    the whole record of them.
+    """
+    if request.method != "DELETE":
+        return JsonResponse(
+            {"status": False, "message": "Invalid request method"}, status=405
+        )
+
+    member = get_object_or_404(Members.objects.select_related("family", "user"), id=id)
+    who = member.user.username if member.user else (
+        ("%s %s" % (member.first_name, member.last_name)).strip() or "Child"
+    )
+    family_name = member.family.name
+    member.delete()
+
+    return JsonResponse(
+        {
+            "status": True,
+            "message": "%s removed from %s" % (who, family_name),
+        }
+    )
