@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from api.documents import member_record_pdf, proof_of_registration_pdf
 from api.uploads import DrainsUploadBeforeAuthMixin, drains_upload_before_auth
 from reportlab.lib.pagesizes import letter
 from rest_framework.permissions import IsAdminUser
@@ -990,56 +991,33 @@ class EditGeneralInformation(APIView):
     },
 )
 class ProofOfRegistrationView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, user_id, *args, **kwargs):
+        # A member may download their own proof; staff may download anyone's.
+        # Without this check any signed-in account could walk the ids and
+        # collect every member's national ID and home address.
+        if str(request.user.id) != str(user_id) and not (
+            request.user.is_staff or request.user.is_superuser
+        ):
+            return Response(
+                {"error": "You can only download your own proof of registration"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         try:
-            # Fetch the user's registration information
-            general_info = Generalinformation.objects.get(user_id=user_id)
-
-            # Create a BytesIO buffer to store the PDF
-            buffer = BytesIO()
-
-            # Create the PDF object, using the buffer as its "file"
-            p = canvas.Canvas(buffer, pagesize=letter)
-            p.setTitle("Proof of Registration")
-            logo_path = os.path.join(settings.STATIC_ROOT, 'logo.png')  # Path to the logo image
-            print("Logo Path:", logo_path)  # Debugging: Print the logo path
-            if os.path.exists(logo_path):
-                print("Logo exists at:", logo_path)  # Debugging: Confirm the logo exists
-                try:
-                    logo = ImageReader(logo_path)
-                    p.drawImage(logo, 50, 750, width=50, height=50)  # Draw the logo at (50, 750)
-                except Exception as e:
-                    print("Error loading logo:", e)  # Debugging: Log any errors
-            else:
-                print("Logo not found at:", logo_path)  # Debugging: Log if the logo is missing
-
-            # Add the text "Nyarugenge Red Cross" next to the logo
-            p.setFont("Helvetica-Bold", 16)
-            p.drawString(110, 770, "Nyarugenge Red Cross")  # Draw text at (110, 770)
-
-            # Add the title "Proof of Registration"
-            p.setFont("Helvetica-Bold", 14)
-            p.drawString(100, 720, "Proof of Registration")
-
-            # Add user details to the PDF
-            p.setFont("Helvetica", 12)
-            p.drawString(100, 690, f"Name: {general_info.user.username}")
-            p.drawString(100, 670, f"National ID: {general_info.nationalId}")
-            p.drawString(100, 650, f"Department: {general_info.department}")
-            p.drawString(100, 630, "Thank you for registering!")
-
-            # Close the PDF object cleanly
-            p.showPage()
-            p.save()
-
-            # File response with the PDF
-            buffer.seek(0)
-            response = HttpResponse(buffer, content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="proof_of_registration_{user_id}.pdf"'
-            return response
-
+            general_info = Generalinformation.objects.select_related(
+                "user", "address", "blood_donated"
+            ).get(user_id=user_id)
         except Generalinformation.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = proof_of_registration_pdf(general_info)
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response["Content-Disposition"] = (
+            'attachment; filename="proof_of_registration_%s.pdf"' % user_id
+        )
+        return response
 
 
 @extend_schema(
@@ -1081,56 +1059,24 @@ class Admin_all_generalinformation(APIView):
     auth=[],
 )
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def download_single_user_info(request, user_id):
+    # The dashboard document: the complete record, national ID included.
+    # It was AllowAny, so anyone who guessed an id could download a member's
+    # identity number and home address.
+    if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+        return HttpResponse("Not permitted", status=403)
+
     try:
-        user = Generalinformation.objects.get(id=user_id)
+        user = Generalinformation.objects.select_related(
+            "user", "address", "blood_donated"
+        ).get(id=user_id)
     except Generalinformation.DoesNotExist:
         return HttpResponse("User not found", status=404)
 
-    # Create a BytesIO buffer to store the PDF
-    buffer = BytesIO()
-
-    # Create the PDF object, using the buffer as its "file"
-    p = canvas.Canvas(buffer, pagesize=letter)
-
-    # Set the PDF title
-    p.setTitle(f"User Information for {user.user.username}")
-
-    # Add the logo and text at the top
-    logo_path = os.path.join(settings.STATIC_ROOT,'logo.png')  # Path to the logo image
-    if os.path.exists(logo_path):
-        logo = ImageReader(logo_path)
-        p.drawImage(logo, 50, 750, width=50, height=50)  # Draw the logo at (50, 750)
-
-    # Add the text "Nyarugenge Red Cross" next to the logo
-    p.setFont("Helvetica-Bold", 16)
-    p.drawString(110, 770, "Nyarugenge Red Cross")  # Draw text at (110, 770)
-
-    # Add user information below the logo and text
-    p.setFont("Helvetica", 12)
-    p.drawString(100, 700, f"User Information for {user.user.username}")
-    p.drawString(100, 680, f"ID: {user.id}")
-    p.drawString(100, 660, f"Username: {user.user.username}")
-    p.drawString(100, 640, f"Gender: {user.gender}")
-    p.drawString(100, 620, f"National ID: {user.nationalId}")
-    p.drawString(100, 600, f"Department: {user.department}")
-    p.drawString(100, 580, f"Province: {user.address.province}")
-    p.drawString(100, 560, f"District: {user.address.district}")
-    p.drawString(100, 540, f"Sector: {user.address.sector}")
-    p.drawString(100, 520, f"Cell: {user.address.cell}")
-    p.drawString(100, 500, f"Village: {user.address.village}")
-    p.drawString(100, 480, f"Blood Donated: {user.blood_donated.donated}")
-    p.drawString(100, 460, f"Donated Times: {user.blood_donated.donated_times}")
-
-    # Close the PDF object cleanly
-    p.showPage()
-    p.save()
-
-    # File response with the PDF
-    buffer.seek(0)
-    response = HttpResponse(buffer, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="user_{user.id}_info.pdf"'
+    buffer = member_record_pdf(user)
+    response = HttpResponse(buffer, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="member_record_%s.pdf"' % user.id
     return response
 
 
