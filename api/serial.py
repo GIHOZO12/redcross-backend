@@ -93,7 +93,7 @@ class Redcrossactivitiesserializer(serializers.ModelSerializer):
 class FirstAidCourseSerializer(serializers.ModelSerializer):
      class Meta:
           model=FirstAidCourse
-          fields=["id","title","description","first_id_video"]
+          fields=["id","title","description","video_url"]
           extra_kwargs={"id":{"read_only":True,"required":False}}  
 
 

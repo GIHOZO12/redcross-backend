@@ -964,7 +964,7 @@ def first_aid_course(request):
             "id":fa.id,
             "title":fa.title,
             "description":fa.description,
-              "first_video": request.build_absolute_uri(fa.first_id_video.url) if fa.first_id_video else None,
+              "video_url": fa.video_url or None,
               "first_image":request.build_absolute_uri(fa.first_image.url) if fa.first_image else None,
             "created_at":fa.created_at.strftime("%Y-%m-%d %H:%M:%S"),
         })
@@ -985,7 +985,7 @@ def first_aid_course_details(request,id):
             "instructor_image": request.build_absolute_uri(firstaid.instructor.instructor_image.url) if firstaid.instructor.instructor_image else None
         },
         "description": firstaid.description,
-        "first_video": request.build_absolute_uri(firstaid.first_id_video.url) if firstaid.first_id_video else None,
+        "video_url": firstaid.video_url or None,
         "first_image": request.build_absolute_uri(firstaid.first_image.url) if firstaid.first_image else None,
         "created_at": firstaid.created_at.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -1018,7 +1018,7 @@ def admin_courses(request):
             "instructor_image":request.build_absolute_uri(course.instructor.instructor_image.url) if course.instructor.instructor_image else None
             },
             "description":course.description,
-            "firs_video":request.build_absolute_uri(course.first_id_video.url) if course.first_id_video else None,
+            "video_url": course.video_url or None,
             "first_image":request.build_absolute_uri(course.first_image.url) if course.first_image else None
         })
     return JsonResponse(data,safe=False)

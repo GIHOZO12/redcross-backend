@@ -90,11 +90,11 @@ class FamilyActivitiesAdmin(admin.ModelAdmin):
 
 @admin.register(FirstAidCourse)
 class FirstAidCourseAdmin(admin.ModelAdmin):
-    list_display = ["title", "description", "first_id_video", "first_image", "created_at"]
+    list_display = ["title", "description", "video_url", "first_image", "created_at"]
     list_display_links = ["title"]  
     list_filter = ["created_at"]
     search_fields = ["title", "description"]
-    list_editable = ["description", "first_id_video", "first_image"]
+    list_editable = ["description", "video_url", "first_image"]
     list_per_page = 10
 
 @admin.register(Instructors)

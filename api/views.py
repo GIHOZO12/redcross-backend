@@ -467,8 +467,8 @@ def redcrossactivities_list(request):
     tags=['First Aid Courses'],
     summary='Create a first aid course',
     description=(
-        'Creates a course entry. Send as `multipart/form-data` when including '
-        'the `first_id_video` upload.'
+        'Creates a course entry. `video_url` links to where the video is '
+        'hosted, such as YouTube or Google Drive.'
     ),
     request={
         'multipart/form-data': FirstAidCourseSerializer,

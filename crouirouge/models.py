@@ -206,7 +206,15 @@ class FirstAidCourse(models.Model):
     )
     title = models.CharField(max_length=120)
     description = models.TextField()
-    first_id_video = models.FileField(upload_to="firstaid_videos/", blank=True, null=True)
+    # A link to where the course video actually lives - YouTube, Google
+    # Drive, or anywhere else - rather than a copy uploaded here. Course
+    # videos are large, they cost storage and bandwidth on every view, and
+    # they are usually already hosted somewhere that streams them properly.
+    video_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text="Link to the course video, e.g. a YouTube or Google Drive URL.",
+    )
     first_image = models.ImageField(upload_to="firstaid_images/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
