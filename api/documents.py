@@ -43,7 +43,7 @@ RULE = colors.HexColor("#E5E7EB")
 BAND = colors.HexColor("#F9FAFB")
 
 ORGANISATION = "Rwanda Red Cross"
-COMMITTEE = "Nyarugenge Committee"
+COMMITTEE = "RRC Nyarugenge C. Youth"
 
 PAGE_MARGIN = 18 * mm
 
@@ -274,9 +274,9 @@ def proof_of_registration_pdf(info):
         Paragraph("Reference %s" % ref, styles["kicker"]),
         Spacer(1, 9 * mm),
         Paragraph(
-            "This is to certify that <b>%s</b> is registered as a member of the "
-            "%s, %s. The details below are as submitted by the member and held "
-            "on the committee's register." % (name, ORGANISATION, COMMITTEE),
+            "This is to certify that <b>%s</b> is a registered member of "
+            "<b>%s</b>. The details below are as submitted by the member and "
+            "held on the committee's register." % (name, COMMITTEE),
             styles["body"],
         ),
         Spacer(1, 8 * mm),
@@ -302,7 +302,7 @@ def proof_of_registration_pdf(info):
         [
             ["", ""],
             [
-                Paragraph("For the %s" % COMMITTEE, styles["label"]),
+                Paragraph("For %s" % COMMITTEE, styles["label"]),
                 Paragraph("Date", styles["label"]),
             ],
         ],
