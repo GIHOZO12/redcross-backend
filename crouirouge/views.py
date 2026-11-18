@@ -440,6 +440,8 @@ def latest_fellowership(request):
                 print("Error getting image URL:", str(e))  # Debugging
 
         data.append({
+            # The home-page card needs an id to link to /fellowship/<id>/.
+            "id": fellowship.id,
             "title": fellowship.title,
             "description": fellowship.description,
             "fellowership_image": image_url,
